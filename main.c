@@ -30,6 +30,7 @@
 
 #include "tio.h"
 #include "jkii.h"
+#include "ebisu_cc3200.h"
 
 #define IP_ADDR             0xc0a80016 /* 192.168.0.22 */
 #define PORT_NUM            5201
@@ -62,11 +63,16 @@ typedef enum{
 #define OSI_STACK_SIZE          2048
 #define APP_NAME                "ThingSDK Demo"
 #define MAX_MSG_LENGTH			16
-#define APP_ID                  "icv1zv3qfqps"
-#define APP_KEY                 "8e85675b39cd410cb18fe345c3dd3a37"
-#define APP_SITE                "JP"
+#define KII_APP_ID              "icv1zv3qfqps"
+#define KII_APP_KEY             "8e85675b39cd410cb18fe345c3dd3a37"
+#define KII_APP_HOST            "api-jp.kii.com"
 #define VENDOR_THING_ID         "test-1"
 #define THING_PASSWORD          "1234"
+#define TO_RECV_SEC             15
+#define TO_SEND_SEC             15
+#define HANDLER_KEEP_ALIVE_SEC  300
+#define HANDLER_HTTP_BUFF_SIZE  1024
+#define HANDLER_MQTT_BUFF_SIZE  1024
 
 //*****************************************************************************
 //                 GLOBAL VARIABLES -- Start
@@ -96,14 +102,6 @@ extern uVectorEntry __vector_table;
 #endif
 #endif
 
-typedef struct prv_smartlight_t {
-    kii_json_boolean_t power;
-    int brightness;
-    int color[3];
-    int color_temperature;
-} prv_smartlight_t;
-
-static prv_smartlight_t m_smartlight;
 static OsiLockObj_t m_mutex;
 
 //*****************************************************************************
@@ -645,205 +643,20 @@ static long WlanConnect()
 
 }
 
-static kii_json_parse_result_t prv_json_read_object(
-        const char* json,
-        size_t json_len,
-        kii_json_field_t* fields,
-        char error[EMESSAGE_SIZE + 1])
+tio_bool_t pushed_message_callback(const char* message, size_t message_length, void* userdata)
 {
-    kii_json_t kii_json;
-    kii_json_resource_t* resource_pointer = NULL;
-
-    memset(&kii_json, 0, sizeof(kii_json));
-    kii_json.resource = resource_pointer;
-    kii_json.error_string_buff = error;
-    kii_json.error_string_length = EMESSAGE_SIZE + 1;
-
-    return kii_json_read_object(&kii_json, json, json_len, fields);
-}
-
-static kii_bool_t prv_get_smartlight_info(prv_smartlight_t* smartlight)
-{
-    if (osi_LockObjLock(&m_mutex, OSI_WAIT_FOREVER) != OSI_OK) {
-        return KII_FALSE;
-    }
-    smartlight->power = m_smartlight.power;
-    smartlight->brightness = m_smartlight.brightness;
-    smartlight->color[0] = m_smartlight.color[0];
-    smartlight->color[1] = m_smartlight.color[1];
-    smartlight->color[2] = m_smartlight.color[2];
-    smartlight->color_temperature = m_smartlight.color_temperature;
-    if (osi_LockObjUnlock(&m_mutex) != 0) {
-        return KII_FALSE;
-    }
-    return KII_TRUE;
-}
-
-static kii_bool_t prv_set_smartlight_info(const prv_smartlight_t* smartlight)
-{
-    if (osi_LockObjLock(&m_mutex, OSI_WAIT_FOREVER) != OSI_OK) {
-        return KII_FALSE;
-    }
-    m_smartlight.power = smartlight->power;
-    m_smartlight.brightness = smartlight->brightness;
-    m_smartlight.color[0] = smartlight->color[0];
-    m_smartlight.color[1] = smartlight->color[1];
-    m_smartlight.color[2] = smartlight->color[2];
-    m_smartlight.color_temperature = smartlight->color_temperature;
-    if (osi_LockObjUnlock(&m_mutex) != OSI_OK) {
-        return KII_FALSE;
-    }
-    return KII_TRUE;
-}
-
-static kii_bool_t action_handler(
-        const char* schema,
-        int schema_version,
-        const char* action_name,
-        const char* action_params,
-        char error[EMESSAGE_SIZE + 1])
-{
-    prv_smartlight_t smartlight;
-
-    Report("schema=%s, schema_version=%d, action name=%s, action params=%s %d\n",
-            schema, schema_version, action_name, action_params, strlen(action_params));
-
-    if (strcmp(schema, "SmartLightDemo") != 0 && schema_version != 1) {
-        Report("invalid schema: %s %d\n", schema, schema_version);
-        sprintf(error, "invalid schema: %s %d", schema, schema_version);
-        return KII_FALSE;
-    }
-
-    memset(&smartlight, 0x00, sizeof(smartlight));
-    if (prv_get_smartlight_info(&smartlight) == KII_FALSE) {
-        Report("fail to lock.\n");
-        strcpy(error, "fail to lock.");
-        return KII_FALSE;
-    }
-    if (strcmp(action_name, "turnPower") == 0) {
-        kii_json_field_t fields[2];
-
-        memset(fields, 0x00, sizeof(fields));
-        fields[0].path = "/power";
-        fields[0].type = KII_JSON_FIELD_TYPE_BOOLEAN;
-        fields[1].path = NULL;
-        if(prv_json_read_object(action_params, strlen(action_params),
-                        fields, error) !=  KII_JSON_PARSE_SUCCESS) {
-            Report("invalid turnPower json\n");
-            return KII_FALSE;
-        }
-        smartlight.power = fields[0].field_copy.boolean_value;
-    } else if (strcmp(action_name, "setBrightness") == 0) {
-        kii_json_field_t fields[2];
-
-        memset(fields, 0x00, sizeof(fields));
-        fields[0].path = "/brightness";
-        fields[0].type = KII_JSON_FIELD_TYPE_INTEGER;
-        fields[1].path = NULL;
-        if(prv_json_read_object(action_params, strlen(action_params),
-                        fields, error) !=  KII_JSON_PARSE_SUCCESS) {
-            Report("invalid brightness json\n");
-            return KII_FALSE;
-        }
-        smartlight.brightness = fields[0].field_copy.int_value;
-    } else if (strcmp(action_name, "setColor") == 0) {
-        kii_json_field_t fields[4];
-
-        memset(fields, 0x00, sizeof(fields));
-        fields[0].path = "/color/[0]";
-        fields[0].type = KII_JSON_FIELD_TYPE_INTEGER;
-        fields[1].path = "/color/[1]";
-        fields[1].type = KII_JSON_FIELD_TYPE_INTEGER;
-        fields[2].path = "/color/[2]";
-        fields[2].type = KII_JSON_FIELD_TYPE_INTEGER;
-        fields[3].path = NULL;
-        if(prv_json_read_object(action_params, strlen(action_params),
-                         fields, error) !=  KII_JSON_PARSE_SUCCESS) {
-            Report("invalid color json\n");
-            return KII_FALSE;
-        }
-        smartlight.color[0] = fields[0].field_copy.int_value;
-        smartlight.color[1] = fields[1].field_copy.int_value;
-        smartlight.color[2] = fields[2].field_copy.int_value;
-    } else if (strcmp(action_name, "setColorTemperature") == 0) {
-        kii_json_field_t fields[2];
-
-        memset(fields, 0x00, sizeof(fields));
-        fields[0].path = "/colorTemperature";
-        fields[0].type = KII_JSON_FIELD_TYPE_INTEGER;
-        fields[1].path = NULL;
-        if(prv_json_read_object(action_params, strlen(action_params),
-                        fields, error) !=  KII_JSON_PARSE_SUCCESS) {
-            Report("invalid colorTemperature json\n");
-            return KII_FALSE;
-        }
-        smartlight.color_temperature = fields[0].field_copy.int_value;
-    } else {
-        Report("invalid action: %s\n", action_name);
-        return KII_FALSE;
-    }
-
-    if (prv_set_smartlight_info(&smartlight) == KII_FALSE) {
-        Report("fail to unlock.\n");
-        return KII_FALSE;
-    }
-    return KII_TRUE;
-}
-
-static kii_bool_t state_handler(
-        kii_t* kii,
-        KII_THING_IF_WRITER writer)
-{
-    char buf[256];
-    prv_smartlight_t smartlight;
-    memset(&smartlight, 0x00, sizeof(smartlight));
-    if (prv_get_smartlight_info(&smartlight) == KII_FALSE) {
-        printf("fail to lock.\n");
-        return KII_FALSE;
-    }
-    if ((*writer)(kii, "{\"power\":") == KII_FALSE) {
-        return KII_FALSE;
-    }
-    if ((*writer)(kii, smartlight.power == KII_JSON_TRUE
-                    ? "true," : "false,") == KII_FALSE) {
-        return KII_FALSE;
-    }
-    if ((*writer)(kii, "\"brightness\":") == KII_FALSE) {
-        return KII_FALSE;
-    }
-
-    sprintf(buf, "%d,", smartlight.brightness);
-    if ((*writer)(kii, buf) == KII_FALSE) {
-        return KII_FALSE;
-    }
-
-    if ((*writer)(kii, "\"color\":") == KII_FALSE) {
-        return KII_FALSE;
-    }
-    sprintf(buf, "[%d,%d,%d],", smartlight.color[0],
-            smartlight.color[1], smartlight.color[2]);
-    if ((*writer)(kii, buf) == KII_FALSE) {
-        return KII_FALSE;
-    }
-
-    if ((*writer)(kii, "\"colorTemperature\":") == KII_FALSE) {
-        return KII_FALSE;
-    }
-    sprintf(buf, "%d}", smartlight.color_temperature);
-    if ((*writer)(kii, buf) == KII_FALSE) {
-        return KII_FALSE;
-    }
-    return KII_TRUE;
+    // TODO: Implement.
+    return KII_FALSE;
 }
 
 void handler_init(
         tio_handler_t* handler,
         char* http_buffer,
         int http_buffer_size,
-        void* http_ssl_ctx,
+        void* http_sock_ctx,
         char* mqtt_buffer,
         int mqtt_buffer_size,
-        void* mqtt_ssl_ctx,
+        void* mqtt_sock_ctx,
         jkii_resource_t* resource)
 {
     tio_handler_init(handler);
@@ -855,15 +668,15 @@ void handler_init(
     tio_handler_set_cb_task_create(handler, task_create_cb_impl, NULL);
     tio_handler_set_cb_delay_ms(handler, delay_ms_cb_impl, NULL);
 
-    tio_handler_set_cb_sock_connect_http(handler, sock_cb_connect, http_ssl_ctx);
-    tio_handler_set_cb_sock_send_http(handler, sock_cb_send, http_ssl_ctx);
-    tio_handler_set_cb_sock_recv_http(handler, sock_cb_recv, http_ssl_ctx);
-    tio_handler_set_cb_sock_close_http(handler, sock_cb_close, http_ssl_ctx);
+    tio_handler_set_cb_sock_connect_http(handler, sock_cb_connect, http_sock_ctx);
+    tio_handler_set_cb_sock_send_http(handler, sock_cb_send, http_sock_ctx);
+    tio_handler_set_cb_sock_recv_http(handler, sock_cb_recv, http_sock_ctx);
+    tio_handler_set_cb_sock_close_http(handler, sock_cb_close, http_sock_ctx);
 
-    tio_handler_set_cb_sock_connect_mqtt(handler, sock_cb_connect, mqtt_ssl_ctx);
-    tio_handler_set_cb_sock_send_mqtt(handler, sock_cb_send, mqtt_ssl_ctx);
-    tio_handler_set_cb_sock_recv_mqtt(handler, sock_cb_recv, mqtt_ssl_ctx);
-    tio_handler_set_cb_sock_close_mqtt(handler, sock_cb_close, mqtt_ssl_ctx);
+    tio_handler_set_cb_sock_connect_mqtt(handler, sock_cb_connect, mqtt_sock_ctx);
+    tio_handler_set_cb_sock_send_mqtt(handler, sock_cb_send, mqtt_sock_ctx);
+    tio_handler_set_cb_sock_recv_mqtt(handler, sock_cb_recv, mqtt_sock_ctx);
+    tio_handler_set_cb_sock_close_mqtt(handler, sock_cb_close, mqtt_sock_ctx);
 
     tio_handler_set_mqtt_to_sock_recv(handler, TO_RECV_SEC);
     tio_handler_set_mqtt_to_sock_send(handler, TO_SEND_SEC);
@@ -874,11 +687,14 @@ void handler_init(
     tio_handler_set_keep_alive_interval(handler, HANDLER_KEEP_ALIVE_SEC);
 
     tio_handler_set_json_parser_resource(handler, resource);
-
-    tio_handler_set_cb_task_continue(handler, _handler_continue, NULL);
-    tio_handler_set_cb_task_exit(handler, _handler_exit, NULL);
 }
 
+tio_bool_t tio_action_handler(tio_action_t* action, tio_action_err_t* err, void* userdata)
+{
+    UART_PRINT("tio_action_handler called\n");
+    UART_PRINT("%.*s: %.*s\n", (int)action->alias_length, action->alias,(int)action->action_name_length, action->action_name);
+    return KII_TRUE;
+}
 //******************************************************************************
 //
 //! Command input task
@@ -923,46 +739,26 @@ void vCmdTask( void *pvParameters )
             &handler_mqtt_ctx,
             &handler_resource);
 
-
-    kii_thing_if_command_handler_resource_t command_handler_resource;
-    kii_thing_if_state_updater_resource_t state_updater_resource;
-    char command_handler_buff[4096];
-    char state_updater_buff[4096];
-    char mqtt_buff[2048];
-    kii_thing_if_t kii_thing_if;
+    UART_PRINT("handler init succeed.\n");
     char acCmdStore[MAX_MSG_LENGTH];
     int lRetVal;
-
-    command_handler_resource.buffer = command_handler_buff;
-    command_handler_resource.buffer_size =
-        sizeof(command_handler_buff) / sizeof(command_handler_buff[0]);
-    command_handler_resource.mqtt_buffer = mqtt_buff;
-    command_handler_resource.mqtt_buffer_size =
-        sizeof(mqtt_buff) / sizeof(mqtt_buff[0]);
-    command_handler_resource.action_handler = action_handler;
-    command_handler_resource.state_handler = state_handler;
-
-    state_updater_resource.buffer = state_updater_buff;
-    state_updater_resource.buffer_size =
-        sizeof(state_updater_buff) / sizeof(state_updater_buff[0]);
-    state_updater_resource.period = 60;
-    state_updater_resource.state_handler = state_handler;
-
-    if (init_kii_thing_if(&kii_thing_if, APP_ID, APP_KEY, APP_SITE,
-            &command_handler_resource, &state_updater_resource, NULL) == KII_FALSE) {
-        UART_PRINT("init failed.\n");
-    } else {
-        UART_PRINT("init succeed.\n");
-    }
 
     for( ;; )
     {
         lRetVal = GetCmd(acCmdStore, sizeof(acCmdStore));
         if (lRetVal != 0) {
-            if (onboard_with_vendor_thing_id(&kii_thing_if, VENDOR_THING_ID, THING_PASSWORD, "my_type", NULL) == KII_FALSE) {
-                UART_PRINT("onboard failed.\n");
-            } else {
+            tio_code_t ret = tio_handler_onboard(&handler, VENDOR_THING_ID, THING_PASSWORD, NULL, NULL, NULL, NULL);
+            if (ret == TIO_ERR_OK) {
                 UART_PRINT("onboard succeed.\n");
+                const kii_author_t* author = tio_handler_get_author(&handler);
+                ret = tio_handler_start(&handler, author, tio_action_handler, NULL);
+                if (ret == TIO_ERR_OK) {
+                    UART_PRINT("handler started.\n");
+                } else {
+                    UART_PRINT("handler start failed.\n");
+                }
+            } else {
+                UART_PRINT("onboard failed.\n");
             }
         }
         osi_Sleep(200);

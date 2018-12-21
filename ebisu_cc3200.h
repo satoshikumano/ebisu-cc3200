@@ -11,8 +11,8 @@
 #include "khc_socket_callback.h"
 #include "kii_task_callback.h"
 
-typedef struct {
-    int socket;
+typedef struct socket_context_t {
+    int sock;
     unsigned int to_recv;
     unsigned int to_send;
 } socket_context_t;

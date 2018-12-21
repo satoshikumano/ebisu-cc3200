@@ -202,7 +202,7 @@ static int _jkii_is_double(const char* buf, size_t buf_len)
     }
 
     num_parser_sts sts = parser_sts_sign;
-    for (int i = 0; i < buf_len; ++i) {
+    for (int i = 0; i < buf_len; i++) {
         char c = buf[i];
         switch(sts) {
             case parser_sts_sign:

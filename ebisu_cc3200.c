@@ -37,13 +37,7 @@ khc_sock_code_t sock_cb_connect(
                     sizeof(torecv)) != 0) {
         return KHC_SOCK_FAIL;
     }
-    SlTimeval_t tosend;
-    tosend.tv_sec = ctx->to_send;
-    tosend.tv_usec = 0;
-    if (sl_SetSockOpt(sock, SL_SOL_SOCKET, SL_SO_SNDTIMEO, &tosend,
-                    sizeof(tosend)) != 0) {
-        return KHC_SOCK_FAIL;
-    }
+
     if (sl_Connect(sock, ( SlSockAddr_t *)&addr, sizeof(struct SlSockAddrIn_t)) < 0) {
         sl_Close(sock);
         return KHC_SOCK_FAIL;
@@ -65,7 +59,7 @@ khc_sock_code_t sock_cb_send(
     Report("%.*s\r\n", length, buffer);
     socket_context_t* ctx = (socket_context_t*) socket_context;
 
-    sock = ctx->socket;
+    sock = ctx->sock;
     ret = sl_Send(sock, buffer, length, 0);
     *out_length = ret;
     if (ret > 0) {
@@ -86,7 +80,7 @@ khc_sock_code_t sock_cb_recv(
 
     socket_context_t* ctx = (socket_context_t*) socket_context;
 
-    sock = ctx->socket;
+    sock = ctx->sock;
     ret = sl_Recv(sock, buffer, length_to_read, 0);
     if (ret >= 0) {
         *out_actual_length = ret;
@@ -101,10 +95,10 @@ khc_sock_code_t sock_cb_close(void* socket_context)
 {
     int sock;
     socket_context_t* ctx = (socket_context_t*) socket_context;
-    sock = ctx->socket;
+    sock = ctx->sock;
 
     sl_Close(sock);
-    ctx->socket = -1;
+    ctx->sock = -1;
     return KHC_SOCK_OK;
 }
 

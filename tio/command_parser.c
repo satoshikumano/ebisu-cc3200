@@ -119,7 +119,7 @@ _cmd_parser_code_t _parse_alias(
 
 int _check_double(const char* str, size_t len)
 {
-    for (int i = 0; i < len; ++i) {
+    for (int i = 0; i < len; i++) {
         if (str[i] == '.' || str[i] == 'e' || str[i] == 'E') {
             return 0;
         }
@@ -369,7 +369,7 @@ tio_code_t _handle_command(
     size_t actions_array_length = fields[1].end - fields[1].start;
     tio_action_t action;
     size_t result_counts = 0;
-    for (size_t alias_idx = 0; ; ++alias_idx) {
+    for (size_t alias_idx = 0; ; alias_idx++) {
         char* actions_array_in_alias = NULL;
         size_t actions_array_in_alias_length = 0;
         char* alias = NULL;
