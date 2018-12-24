@@ -66,7 +66,7 @@ typedef enum{
 #define KII_APP_ID              "2wdpfjzj70b3"
 #define KII_APP_KEY             "dummy"
 #define KII_APP_HOST            "api-jp.kii.com"
-#define VENDOR_THING_ID         "test1"
+#define VENDOR_THING_ID         "test2"
 #define THING_PASSWORD          "1234"
 #define TO_RECV_SEC             15
 #define TO_SEND_SEC             15
