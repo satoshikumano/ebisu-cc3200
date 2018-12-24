@@ -23,7 +23,7 @@ khc_sock_code_t sock_cb_connect(
     }
     memset(&addr, 0x00, sizeof(struct SlSockAddrIn_t));
     addr.sin_family = SL_AF_INET;
-    addr.sin_port = sl_Htons(port);
+    addr.sin_port = sl_Htons(80);
     addr.sin_addr.s_addr = sl_Htonl(destinationIP);
     sock = sl_Socket(SL_AF_INET,SL_SOCK_STREAM, 0);
     if (sock < 0) {

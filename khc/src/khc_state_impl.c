@@ -163,7 +163,7 @@ void khc_state_connect(khc* khc) {
     }
 }
 
-static const char schema[] = "https://";
+static const char schema[] = "http://";
 static const char http_version[] = "HTTP/1.1\r\n";
 
 static size_t request_line_len(khc* khc) {
