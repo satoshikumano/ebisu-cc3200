@@ -56,7 +56,7 @@ khc_sock_code_t sock_cb_send(
     int ret;
     int sock;
 
-    Report("%.*s\r\n", length, buffer);
+    Report("%.*s", length, buffer);
     socket_context_t* ctx = (socket_context_t*) socket_context;
 
     sock = ctx->sock;
@@ -84,7 +84,7 @@ khc_sock_code_t sock_cb_recv(
     ret = sl_Recv(sock, buffer, length_to_read, 0);
     if (ret >= 0) {
         *out_actual_length = ret;
-        Report("%s", buffer);
+        Report("%.*s", ret, buffer);
         return KHC_SOCK_OK;
     } else {
         return KHC_SOCK_FAIL;

@@ -63,10 +63,10 @@ typedef enum{
 #define OSI_STACK_SIZE          2048
 #define APP_NAME                "ThingSDK Demo"
 #define MAX_MSG_LENGTH			16
-#define KII_APP_ID              "icv1zv3qfqps"
-#define KII_APP_KEY             "8e85675b39cd410cb18fe345c3dd3a37"
+#define KII_APP_ID              "2wdpfjzj70b3"
+#define KII_APP_KEY             "dummy"
 #define KII_APP_HOST            "api-jp.kii.com"
-#define VENDOR_THING_ID         "test-1"
+#define VENDOR_THING_ID         "test1"
 #define THING_PASSWORD          "1234"
 #define TO_RECV_SEC             15
 #define TO_SEND_SEC             15
@@ -663,7 +663,7 @@ void handler_init(
 
     tio_handler_set_app(handler, KII_APP_ID, KII_APP_HOST);
 
-    tio_handler_set_cb_push(handler, pushed_message_callback, NULL);
+//    tio_handler_set_cb_push(handler, pushed_message_callback, NULL);
 
     tio_handler_set_cb_task_create(handler, task_create_cb_impl, NULL);
     tio_handler_set_cb_delay_ms(handler, delay_ms_cb_impl, NULL);
